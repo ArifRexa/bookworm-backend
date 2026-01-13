@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     createReview,
+    updateReview,
     getBookReviews,
     getAllReviews,
     approveReview,
@@ -17,6 +18,7 @@ router.get('/book/:bookId', getBookReviews);
 router.get('/admin', protect, admin, getAllReviews);
 
 router.route('/:id')
+    .put(protect, updateReview)
     .delete(protect, admin, deleteReview);
 
 router.put('/:id/approve', protect, admin, approveReview);

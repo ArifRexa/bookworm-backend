@@ -84,7 +84,7 @@ const getBookReviews = async (req, res) => {
         { $unwind: '$userDetails' },
         {
             $project: {
-                user: { name: '$userDetails.name', photo: '$userDetails.photo' },
+                user: { _id: '$userDetails._id', name: '$userDetails.name', photo: '$userDetails.photo' },
                 rating: 1,
                 content: 1,
                 createdAt: 1
@@ -164,6 +164,53 @@ const approveReview = async (req, res) => {
     }
 };
 
+// @desc    Update review
+// @route   PUT /api/reviews/:id
+// @access  Private
+const updateReview = async (req, res) => {
+    const db = getDB();
+    const { rating, content } = req.body;
+    const reviewId = req.params.id;
+
+    const review = await db.collection('reviews').findOne({ _id: new ObjectId(reviewId) });
+
+    if (review) {
+        if (review.user.toString() !== req.user._id.toString()) {
+            res.status(401);
+            throw new Error('User not authorized');
+        }
+
+        const updatedReview = await db.collection('reviews').findOneAndUpdate(
+            { _id: new ObjectId(reviewId) },
+            {
+                $set: {
+                    rating: Number(rating),
+                    content,
+                    updatedAt: new Date()
+                }
+            },
+            { returnDocument: 'after' }
+        );
+
+        // Recalculate Book Rating
+        const reviews = await db.collection('reviews').find({ book: review.book, status: 'approved' }).toArray();
+        const ratingCount = reviews.length;
+        const averageRating = ratingCount > 0
+            ? Number(reviews.reduce((acc, item) => item.rating + acc, 0) / ratingCount).toFixed(1)
+            : 0;
+
+        await db.collection('books').updateOne(
+            { _id: review.book },
+            { $set: { ratingCount, averageRating: Number(averageRating) } }
+        );
+
+        res.json(updatedReview);
+    } else {
+        res.status(404);
+        throw new Error('Review not found');
+    }
+};
+
 // @desc    Delete review
 // @route   DELETE /api/reviews/:id
 // @access  Private/Admin
@@ -181,6 +228,7 @@ const deleteReview = async (req, res) => {
 
 module.exports = {
     createReview,
+    updateReview,
     getBookReviews,
     getAllReviews,
     approveReview,
