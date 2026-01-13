@@ -28,7 +28,7 @@ const createReview = async (req, res) => {
             book: new ObjectId(bookId),
             rating: Number(rating),
             content,
-            status: 'approved',
+            status: 'pending',
             createdAt: new Date(),
             updatedAt: new Date()
         };
@@ -36,24 +36,15 @@ const createReview = async (req, res) => {
         const result = await db.collection('reviews').insertOne(review);
         const createdReview = await db.collection('reviews').findOne({ _id: result.insertedId });
 
-        // Recalculate Book Rating immediately
-        const reviews = await db.collection('reviews').find({ book: new ObjectId(bookId), status: 'approved' }).toArray();
-        const ratingCount = reviews.length;
-        const averageRating = ratingCount > 0
-            ? Number(reviews.reduce((acc, item) => item.rating + acc, 0) / ratingCount).toFixed(1)
-            : 0;
-
-        await db.collection('books').updateOne(
-            { _id: new ObjectId(bookId) },
-            { $set: { ratingCount, averageRating: Number(averageRating) } }
-        );
+        // Note: Book rating will be recalculated when review is approved
+        // Pending reviews do not affect the book's rating
 
         // Activity logging
         await db.collection('activities').insertOne({
             user: new ObjectId(req.user._id),
             type: 'new_review',
             book: new ObjectId(bookId),
-            details: `rated it ${rating}/5`,
+            details: `submitted a review (pending approval)`,
             timestamp: new Date(),
             createdAt: new Date(),
             updatedAt: new Date()
