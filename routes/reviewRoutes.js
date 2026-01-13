@@ -3,7 +3,7 @@ const router = express.Router();
 const {
     createReview,
     getBookReviews,
-    getPendingReviews,
+    getAllReviews,
     approveReview,
     deleteReview
 } = require('../controllers/reviewController');
@@ -14,7 +14,7 @@ router.route('/')
 
 router.get('/book/:bookId', getBookReviews);
 
-router.get('/pending', protect, admin, getPendingReviews);
+router.get('/admin', protect, admin, getAllReviews);
 
 router.route('/:id')
     .delete(protect, admin, deleteReview);

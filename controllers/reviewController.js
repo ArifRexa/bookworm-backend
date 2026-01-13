@@ -28,13 +28,25 @@ const createReview = async (req, res) => {
             book: new ObjectId(bookId),
             rating: Number(rating),
             content,
-            status: 'pending',
+            status: 'approved',
             createdAt: new Date(),
             updatedAt: new Date()
         };
 
         const result = await db.collection('reviews').insertOne(review);
         const createdReview = await db.collection('reviews').findOne({ _id: result.insertedId });
+
+        // Recalculate Book Rating immediately
+        const reviews = await db.collection('reviews').find({ book: new ObjectId(bookId), status: 'approved' }).toArray();
+        const ratingCount = reviews.length;
+        const averageRating = ratingCount > 0
+            ? Number(reviews.reduce((acc, item) => item.rating + acc, 0) / ratingCount).toFixed(1)
+            : 0;
+
+        await db.collection('books').updateOne(
+            { _id: new ObjectId(bookId) },
+            { $set: { ratingCount, averageRating: Number(averageRating) } }
+        );
 
         // Activity logging
         await db.collection('activities').insertOne({
@@ -82,13 +94,13 @@ const getBookReviews = async (req, res) => {
     res.json(reviews);
 };
 
-// @desc    Get all pending reviews (Admin)
-// @route   GET /api/reviews/pending
+// @desc    Get all reviews (Admin)
+// @route   GET /api/reviews/admin
 // @access  Private/Admin
-const getPendingReviews = async (req, res) => {
+const getAllReviews = async (req, res) => {
     const db = getDB();
     const reviews = await db.collection('reviews').aggregate([
-        { $match: { status: 'pending' } },
+        { $match: {} },
         {
             $lookup: {
                 from: 'users',
@@ -113,9 +125,11 @@ const getPendingReviews = async (req, res) => {
                 book: { title: '$bookDetails.title' },
                 rating: 1,
                 content: 1,
+                status: 1,
                 createdAt: 1
             }
-        }
+        },
+        { $sort: { createdAt: -1 } }
     ]).toArray();
     res.json(reviews);
 };
@@ -168,7 +182,7 @@ const deleteReview = async (req, res) => {
 module.exports = {
     createReview,
     getBookReviews,
-    getPendingReviews,
+    getAllReviews,
     approveReview,
     deleteReview
 };
